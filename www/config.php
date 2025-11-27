@@ -3,6 +3,9 @@
  * SSL Certificate Manager - Configuration
  */
 
+// Timezone
+date_default_timezone_set('Europe/Paris');
+
 // ===========================
 // Paths
 // ===========================
@@ -19,106 +22,53 @@ define('STEP_CA_ROOT_CERT', STEP_CA_PATH . '/certs/root_ca.crt');
 define('STEP_CA_INTERMEDIATE_CERT', STEP_CA_PATH . '/certs/intermediate_ca.crt');
 
 // ===========================
-// Session Configuration
+// Application Settings
 // ===========================
-define('SESSION_TIMEOUT', getenv('SESSION_TIMEOUT') ?: 1800); // 30 minutes
-define('SESSION_NAME', 'SSL_CERT_MANAGER_SESSION');
+define('APP_NAME', 'SSL Certificate Manager');
+define('APP_VERSION', '1.0.0');
+define('SESSION_TIMEOUT', 3600); // 1 hour in seconds
 
 // ===========================
-// Active Directory Configuration
+// Certificate Defaults
 // ===========================
-define('AD_ENABLED', filter_var(getenv('AD_ENABLED') ?: 'false', FILTER_VALIDATE_BOOLEAN));
+define('DEFAULT_CERT_VALIDITY', 365); // days
+define('DEFAULT_KEY_SIZE', 2048);
+define('SUPPORTED_KEY_SIZES', [2048, 3072, 4096]);
+
+// ===========================
+// Active Directory (optionnel)
+// ===========================
+define('AD_ENABLED', getenv('AD_ENABLED') === 'true');
 define('AD_SERVER', getenv('AD_SERVER') ?: 'ldap://dc.example.com');
-define('AD_PORT', (int)(getenv('AD_PORT') ?: 389));
+define('AD_PORT', getenv('AD_PORT') ?: 389);
 define('AD_DOMAIN', getenv('AD_DOMAIN') ?: 'EXAMPLE');
 define('AD_BASE_DN', getenv('AD_BASE_DN') ?: 'DC=example,DC=com');
-define('AD_USE_TLS', filter_var(getenv('AD_USE_TLS') ?: 'false', FILTER_VALIDATE_BOOLEAN));
-define('AD_TIMEOUT', 10);
-
-// AD Group restrictions (comma-separated)
-$ad_groups_env = getenv('AD_REQUIRED_GROUPS') ?: '';
-define('AD_REQUIRED_GROUPS', !empty($ad_groups_env) ? explode(',', $ad_groups_env) : []);
+define('AD_USE_TLS', getenv('AD_USE_TLS') === 'true');
 
 // ===========================
-// Certificate Configuration
+// Security
 // ===========================
-define('DEFAULT_CERT_VALIDITY_DAYS', (int)(getenv('DEFAULT_CERT_VALIDITY_DAYS') ?: 365));
-define('CA_PROVISIONER', getenv('CA_PROVISIONER') ?: 'admin');
-define('CA_PROVISIONER_PASSWORD', getenv('CA_PROVISIONER_PASSWORD') ?: 'changeme');
+define('ENABLE_CSRF', true);
+define('PASSWORD_MIN_LENGTH', 8);
 
 // ===========================
-// Logging Configuration
+// Logging
 // ===========================
+define('ENABLE_LOGGING', true);
 define('LOG_FILE', LOGS_DIR . '/app.log');
-define('MAX_LOG_SIZE', 10 * 1024 * 1024); // 10 MB
 
-// ===========================
-// Security Headers
-// ===========================
-header('X-Content-Type-Options: nosniff');
-header('X-Frame-Options: SAMEORIGIN');
-header('X-XSS-Protection: 1; mode=block');
-header('Referrer-Policy: strict-origin-when-cross-origin');
-
-// ===========================
-// Initialize Directories
-// ===========================
-function init_directories() {
-    $dirs = [DATA_DIR, CERTS_DIR, LOGS_DIR];
-    foreach ($dirs as $dir) {
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
-    }
-    
-    // Créer le fichier .password s'il n'existe pas
-    if (!file_exists(PASSWORD_FILE)) {
-        // Utilisateur admin par défaut (password: admin123)
-        $default_user = 'admin:$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi';
-        file_put_contents(PASSWORD_FILE, $default_user . PHP_EOL);
-        chmod(PASSWORD_FILE, 0600);
+// Create necessary directories
+$directories = [DATA_DIR, CERTS_DIR, LOGS_DIR];
+foreach ($directories as $dir) {
+    if (!is_dir($dir)) {
+        mkdir($dir, 0750, true);
     }
 }
 
-// ===========================
-// Logging Function
-// ===========================
-function log_message($level, $message, $context = []) {
-    init_directories();
-    
-    // Rotate log if too large
-    if (file_exists(LOG_FILE) && filesize(LOG_FILE) > MAX_LOG_SIZE) {
-        $backup = LOG_FILE . '.' . date('Y-m-d_His') . '.old';
-        rename(LOG_FILE, $backup);
-    }
-    
-    $timestamp = date('Y-m-d H:i:s');
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'CLI';
-    $user = $_SESSION['username'] ?? 'anonymous';
-    
-    $context_str = !empty($context) ? ' | ' . json_encode($context) : '';
-    $log_entry = "[$timestamp] [$level] [$ip] [$user] $message$context_str" . PHP_EOL;
-    
-    file_put_contents(LOG_FILE, $log_entry, FILE_APPEND | LOCK_EX);
+// Create default password file if it doesn't exist
+if (!file_exists(PASSWORD_FILE)) {
+    // Default: admin / admin123
+    $defaultPassword = password_hash('admin123', PASSWORD_BCRYPT);
+    file_put_contents(PASSWORD_FILE, "admin:$defaultPassword\n");
+    chmod(PASSWORD_FILE, 0600);
 }
-
-// ===========================
-// Utility Functions
-// ===========================
-function sanitize_filename($filename) {
-    $filename = preg_replace('/[^a-zA-Z0-9._-]/', '_', $filename);
-    $filename = preg_replace('/_+/', '_', $filename);
-    return trim($filename, '_');
-}
-
-function format_bytes($bytes, $precision = 2) {
-    $units = ['B', 'KB', 'MB', 'GB'];
-    $bytes = max($bytes, 0);
-    $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
-    $pow = min($pow, count($units) - 1);
-    $bytes /= (1 << (10 * $pow));
-    return round($bytes, $precision) . ' ' . $units[$pow];
-}
-
-// Initialize on load
-init_directories();

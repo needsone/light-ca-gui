@@ -2,14 +2,16 @@ version: '3.8'
 
 services:
   ssl-manager:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
     container_name: ssl-certificate-manager
     ports:
       - "8080:80"
       - "8443:443"
     volumes:
-      - ./www:/var/www/html/ssl-manager
-      - ./data:/var/www/html/ssl-manager/data
+      - ./www:/var/www/localhost/htdocs/ssl-manager
+      - ./data:/var/www/localhost/htdocs/ssl-manager/data
       - ./data/step-ca:/var/step-ca
       - ./scripts:/scripts
     environment:
@@ -29,6 +31,12 @@ services:
     networks:
       - ssl-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 networks:
   ssl-network:
