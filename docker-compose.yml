@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  ssl-manager:
+    build: .
+    container_name: ssl-certificate-manager
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./www:/var/www/html/ssl-manager
+      - ./data:/var/www/html/ssl-manager/data
+      - ./data/step-ca:/var/step-ca
+      - ./scripts:/scripts
+    environment:
+      - TZ=Europe/Paris
+      - CA_NAME=${CA_NAME:-My Certificate Authority}
+      - CA_DNS=${CA_DNS:-ca.example.com}
+      - CA_ADDRESS=${CA_ADDRESS:-:9000}
+      - CA_PROVISIONER=${CA_PROVISIONER:-admin}
+      - CA_PROVISIONER_PASSWORD=${CA_PROVISIONER_PASSWORD:-changeme}
+      # Active Directory
+      - AD_ENABLED=${AD_ENABLED:-false}
+      - AD_SERVER=${AD_SERVER:-ldap://dc.example.com}
+      - AD_PORT=${AD_PORT:-389}
+      - AD_DOMAIN=${AD_DOMAIN:-EXAMPLE}
+      - AD_BASE_DN=${AD_BASE_DN:-DC=example,DC=com}
+      - AD_USE_TLS=${AD_USE_TLS:-false}
+    networks:
+      - ssl-network
+    restart: unless-stopped
+
+networks:
+  ssl-network:
+    driver: bridge
